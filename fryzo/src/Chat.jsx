@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "./supabaseClient";
+import { AvatarScene } from "./AvatarScene";
 import "./App.css";
 
 const SYSTEM_PROMPT =
@@ -76,21 +77,21 @@ function Chat({ session }) {
     <div className="app">
       <header className="header">
         <h1>Fryzo</h1>
-        <p>Your 3D companion — chat version for now 😄</p>
         <span className="user-email">{session.user.email}</span>
         <button className="logout" onClick={logout}>Log out</button>
       </header>
 
-      <div className="chat">
-        {messages.length === 0 && (
-          <div className="empty">Say something to Fryzo to get started!</div>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className={`bubble ${m.role}`}>{m.content}</div>
-        ))}
-        {loading && <div className="bubble assistant typing">Fryzo is thinking…</div>}
-        {error && <div className="error">{error}</div>}
-        <div ref={bottomRef} />
+      <div className="stage">
+        <AvatarScene />
+
+        <div className="messages">
+          {messages.map((m, i) => (
+            <div key={i} className={`bubble ${m.role}`}>{m.content}</div>
+          ))}
+          {loading && <div className="bubble assistant typing">Fryzo is thinking…</div>}
+          {error && <div className="error">{error}</div>}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
       <div className="input-bar">

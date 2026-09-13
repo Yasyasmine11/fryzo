@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 import { AvatarScene } from "./AvatarScene";
+import { AvatarPicker } from "./AvatarPicker";
 import "./App.css";
 
 const SYSTEM_PROMPT =
@@ -10,15 +11,47 @@ const SYSTEM_PROMPT =
   "Keep your answers short: 1 to 3 sentences maximum.";
 
 function Chat({ session }) {
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [status, setStatus] = useState("loading"); // loading | picking | ready
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
 
+  // Charge le bot de l'utilisateur au démarrage
+  useEffect(() => {
+    async function loadBot() {
+      const { data } = await supabase
+        .from("bots")
+        .select("avatar")
+        .eq("user_id", session.user.id)
+        .maybeSingle();
+
+      if (data?.avatar) {
+        setAvatarUrl(data.avatar);
+        setStatus("ready");
+      } else {
+        setStatus("picking");
+      }
+    }
+    loadBot();
+  }, [session]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  async function handlePicked(url) {
+    await supabase.from("bots").upsert({
+      user_id: session.user.id,
+      avatar: url,
+      updated_at: new Date().toISOString(),
+    });
+    setAvatarUrl(url);
+    setStatus("ready");
+  }
 
   async function sendMessage() {
     const text = input.trim();
@@ -73,16 +106,27 @@ function Chat({ session }) {
     await supabase.auth.signOut();
   }
 
+  if (status === "loading") {
+    return <div className="app"><div className="empty" style={{ margin: "auto" }}>Loading…</div></div>;
+  }
+
+  if (status === "picking") {
+    return <AvatarPicker onPicked={handlePicked} initialUrl={avatarUrl} />;
+  }
+
   return (
     <div className="app">
       <header className="header">
         <h1>Fryzo</h1>
         <span className="user-email">{session.user.email}</span>
+        <button className="change-avatar" onClick={() => setStatus("picking")}>
+          Change avatar
+        </button>
         <button className="logout" onClick={logout}>Log out</button>
       </header>
 
       <div className="stage">
-        <AvatarScene />
+        <AvatarScene url={avatarUrl} />
 
         <div className="messages">
           {messages.map((m, i) => (

@@ -1,17 +1,19 @@
 import { useEffect, useRef } from "react";
 import { useGLTF, useAnimations } from "@react-three/drei";
 
-export function FryzoAvatar(props) {
+export function FryzoAvatar({ url, ...props }) {
   const group = useRef();
-  const { scene, animations } = useGLTF("/RobotExpressive.glb");
-  const { actions } = useAnimations(animations, group);
+  const { scene, animations } = useGLTF(url);
+  const { actions, names } = useAnimations(animations, group);
 
   useEffect(() => {
-    // Lance l'animation d'attente en boucle
-    const idle = actions?.Idle;
-    idle?.reset().fadeIn(0.3).play();
-    return () => idle?.fadeOut(0.3);
-  }, [actions]);
+    if (!names || names.length === 0) return; // modèle sans animation
+    // Cherche une animation "idle", sinon prend la première
+    const idleName = names.find((n) => /idle/i.test(n)) || names[0];
+    const action = actions[idleName];
+    action?.reset().fadeIn(0.3).play();
+    return () => action?.fadeOut(0.3);
+  }, [actions, names]);
 
   return (
     <group ref={group} {...props}>
@@ -19,5 +21,3 @@ export function FryzoAvatar(props) {
     </group>
   );
 }
-
-useGLTF.preload("/RobotExpressive.glb");

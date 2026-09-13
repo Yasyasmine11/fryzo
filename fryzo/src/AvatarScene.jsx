@@ -3,7 +3,7 @@ import { Suspense } from "react";
 import { Bounds, OrbitControls } from "@react-three/drei";
 import { FryzoAvatar } from "./FryzoAvatar";
 
-export function AvatarScene({ url }) {
+export function AvatarScene({ url, emotion }) {
   return (
     <Canvas camera={{ position: [0, 0, 8], fov: 35 }}>
       <ambientLight intensity={0.9} />
@@ -11,7 +11,7 @@ export function AvatarScene({ url }) {
 
       <Suspense fallback={null}>
         <Bounds fit clip observe margin={1.2} key={url}>
-          <FryzoAvatar key={url} url={url} />
+          <FryzoAvatar key={url} url={url} emotion={emotion} />
         </Bounds>
       </Suspense>
 

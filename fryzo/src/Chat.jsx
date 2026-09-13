@@ -2,35 +2,44 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "./supabaseClient";
 import { AvatarScene } from "./AvatarScene";
 import { AvatarPicker } from "./AvatarPicker";
+import { buildSystemPrompt } from "./personalities";
 import "./App.css";
 
-const SYSTEM_PROMPT =
-  "You are Fryzo, a friendly and fun virtual companion. " +
-  "You chat with the user to entertain them and keep them company. " +
-  "Always reply in English, in a natural, warm and playful way. " +
-  "Keep your answers short: 1 to 3 sentences maximum.";
+// Lecture robuste de la réponse (JSON, JSON entre ```, ou texte brut)
+function parseReply(raw) {
+  try {
+    const cleaned = raw.replace(/```json|```/g, "").trim();
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    const obj = JSON.parse(match ? match[0] : cleaned);
+    return { reply: obj.reply ?? raw, emotion: obj.emotion ?? "neutral" };
+  } catch {
+    return { reply: raw, emotion: "neutral" };
+  }
+}
 
 function Chat({ session }) {
   const [avatarUrl, setAvatarUrl] = useState(null);
+  const [personality, setPersonality] = useState("shy");
   const [status, setStatus] = useState("loading"); // loading | picking | ready
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [emotion, setEmotion] = useState({ name: "neutral", key: 0 });
   const bottomRef = useRef(null);
 
-  // Charge le bot de l'utilisateur au démarrage
   useEffect(() => {
     async function loadBot() {
       const { data } = await supabase
         .from("bots")
-        .select("avatar")
+        .select("avatar, personality")
         .eq("user_id", session.user.id)
         .maybeSingle();
 
       if (data?.avatar) {
         setAvatarUrl(data.avatar);
+        setPersonality(data.personality || "shy");
         setStatus("ready");
       } else {
         setStatus("picking");
@@ -43,13 +52,15 @@ function Chat({ session }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  async function handlePicked(url) {
+  async function handlePicked(url, pers) {
     await supabase.from("bots").upsert({
       user_id: session.user.id,
       avatar: url,
+      personality: pers,
       updated_at: new Date().toISOString(),
     });
     setAvatarUrl(url);
+    setPersonality(pers);
     setStatus("ready");
   }
 
@@ -75,21 +86,31 @@ function Chat({ session }) {
           },
           body: JSON.stringify({
             model: "openai/gpt-oss-120b",
-            messages: [{ role: "system", content: SYSTEM_PROMPT }, ...newMessages],
+            messages: [
+              { role: "system", content: buildSystemPrompt(personality) },
+              ...newMessages,
+            ],
             temperature: 0.8,
             max_tokens: 300,
           }),
         }
       );
 
-      if (!res.ok) throw new Error(`API error (${res.status})`);
+      if (!res.ok) {
+        const detail = await res.text();
+        console.error("🔴 Groq error body:", detail);
+        throw new Error(detail || `API error (${res.status})`);
+      }
 
       const data = await res.json();
-      const reply = data.choices[0].message.content;
+      const raw = data.choices[0].message.content;
+      const { reply, emotion: emo } = parseReply(raw);
+
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      setEmotion({ name: emo, key: Date.now() });
     } catch (err) {
       console.error(err);
-      setError("Oops, Fryzo couldn't reply. Check your API key and connection.");
+      setError(err.message || "Oops, Fryzo couldn't reply.");
     } finally {
       setLoading(false);
     }
@@ -111,7 +132,13 @@ function Chat({ session }) {
   }
 
   if (status === "picking") {
-    return <AvatarPicker onPicked={handlePicked} initialUrl={avatarUrl} />;
+    return (
+      <AvatarPicker
+        onPicked={handlePicked}
+        initialUrl={avatarUrl}
+        initialPersonality={personality}
+      />
+    );
   }
 
   return (
@@ -120,13 +147,13 @@ function Chat({ session }) {
         <h1>Fryzo</h1>
         <span className="user-email">{session.user.email}</span>
         <button className="change-avatar" onClick={() => setStatus("picking")}>
-          Change avatar
+          Customize
         </button>
         <button className="logout" onClick={logout}>Log out</button>
       </header>
 
       <div className="stage">
-        <AvatarScene url={avatarUrl} />
+        <AvatarScene url={avatarUrl} emotion={emotion} />
 
         <div className="messages">
           {messages.map((m, i) => (

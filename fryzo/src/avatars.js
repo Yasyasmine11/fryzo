@@ -5,4 +5,5 @@ export const AVATARS = [
   { id: "parrot", name: "Parrot", url: "/avatars/Parrot.glb" },
   { id: "simple", name: "Fryzo boy", url: "/avatars/simple.glb" },
   { id: "adventure", name: "Adventure man", url: "/avatars/adventure.glb" },
+  { id: "redheadwoman", name: "Ema", url: "/avatars/redheadwoman.glb" },
 ];

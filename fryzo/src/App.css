@@ -212,3 +212,16 @@ body {
   cursor: pointer;
   font-size: 0.85rem;
 }
+
+.picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+}
+.picker-label {
+  font-size: 0.75rem;
+  color: #8a7699;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

@@ -3,9 +3,10 @@ import { supabase } from "./supabaseClient";
 import { AvatarScene } from "./AvatarScene";
 import { AvatarPicker } from "./AvatarPicker";
 import { buildSystemPrompt } from "./personalities";
+import { LANGUAGES } from "./languages";
+import { speak, stopSpeaking } from "./speech";
 import "./App.css";
 
-// Lecture robuste de la réponse (JSON, JSON entre ```, ou texte brut)
 function parseReply(raw) {
   try {
     const cleaned = raw.replace(/```json|```/g, "").trim();
@@ -20,26 +21,29 @@ function parseReply(raw) {
 function Chat({ session }) {
   const [avatarUrl, setAvatarUrl] = useState(null);
   const [personality, setPersonality] = useState("shy");
-  const [status, setStatus] = useState("loading"); // loading | picking | ready
+  const [language, setLanguage] = useState("en");
+  const [status, setStatus] = useState("loading");
 
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [emotion, setEmotion] = useState({ name: "neutral", key: 0 });
+  const [soundOn, setSoundOn] = useState(true);
   const bottomRef = useRef(null);
 
   useEffect(() => {
     async function loadBot() {
       const { data } = await supabase
         .from("bots")
-        .select("avatar, personality")
+        .select("avatar, personality, language")
         .eq("user_id", session.user.id)
         .maybeSingle();
 
       if (data?.avatar) {
         setAvatarUrl(data.avatar);
         setPersonality(data.personality || "shy");
+        setLanguage(data.language || "en");
         setStatus("ready");
       } else {
         setStatus("picking");
@@ -52,15 +56,17 @@ function Chat({ session }) {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  async function handlePicked(url, pers) {
+  async function handlePicked(url, pers, lang) {
     await supabase.from("bots").upsert({
       user_id: session.user.id,
       avatar: url,
       personality: pers,
+      language: lang,
       updated_at: new Date().toISOString(),
     });
     setAvatarUrl(url);
     setPersonality(pers);
+    setLanguage(lang);
     setStatus("ready");
   }
 
@@ -87,7 +93,7 @@ function Chat({ session }) {
           body: JSON.stringify({
             model: "openai/gpt-oss-120b",
             messages: [
-              { role: "system", content: buildSystemPrompt(personality) },
+              { role: "system", content: buildSystemPrompt(personality, language) },
               ...newMessages,
             ],
             temperature: 0.8,
@@ -108,6 +114,9 @@ function Chat({ session }) {
 
       setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
       setEmotion({ name: emo, key: Date.now() });
+
+      // Lecture vocale
+      if (soundOn) speak(reply, LANGUAGES[language]?.ttsLang || "en-US");
     } catch (err) {
       console.error(err);
       setError(err.message || "Oops, Fryzo couldn't reply.");
@@ -123,7 +132,15 @@ function Chat({ session }) {
     }
   }
 
+  function toggleSound() {
+    setSoundOn((on) => {
+      if (on) stopSpeaking(); // on coupe si on désactive
+      return !on;
+    });
+  }
+
   async function logout() {
+    stopSpeaking();
     await supabase.auth.signOut();
   }
 
@@ -137,6 +154,7 @@ function Chat({ session }) {
         onPicked={handlePicked}
         initialUrl={avatarUrl}
         initialPersonality={personality}
+        initialLanguage={language}
       />
     );
   }
@@ -149,7 +167,12 @@ function Chat({ session }) {
         <button className="change-avatar" onClick={() => setStatus("picking")}>
           Customize
         </button>
-        <button className="logout" onClick={logout}>Log out</button>
+        <div className="header-actions">
+          <button className="sound-toggle" onClick={toggleSound} title="Sound on/off">
+            {soundOn ? "🔊" : "🔇"}
+          </button>
+          <button className="logout" onClick={logout}>Log out</button>
+        </div>
       </header>
 
       <div className="stage">
@@ -157,7 +180,7 @@ function Chat({ session }) {
 
         <div className="messages">
           {messages.map((m, i) => (
-            <div key={i} className={`bubble ${m.role}`}>{m.content}</div>
+            <div key={i} className={`bubble ${m.role}`} dir="auto">{m.content}</div>
           ))}
           {loading && <div className="bubble assistant typing">Fryzo is thinking…</div>}
           {error && <div className="error">{error}</div>}

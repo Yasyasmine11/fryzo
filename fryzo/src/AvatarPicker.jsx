@@ -2,16 +2,18 @@ import { useState } from "react";
 import { AvatarScene } from "./AvatarScene";
 import { AVATARS } from "./avatars";
 import { PERSONALITIES } from "./personalities";
+import { LANGUAGES } from "./languages";
 import "./App.css";
 
-export function AvatarPicker({ onPicked, initialUrl, initialPersonality }) {
+export function AvatarPicker({ onPicked, initialUrl, initialPersonality, initialLanguage }) {
   const [selected, setSelected] = useState(initialUrl || AVATARS[0].url);
   const [personality, setPersonality] = useState(initialPersonality || "shy");
+  const [language, setLanguage] = useState(initialLanguage || "en");
   const [saving, setSaving] = useState(false);
 
   async function confirm() {
     setSaving(true);
-    await onPicked(selected, personality);
+    await onPicked(selected, personality, language);
   }
 
   return (
@@ -27,11 +29,9 @@ export function AvatarPicker({ onPicked, initialUrl, initialPersonality }) {
           <span className="picker-label">Character</span>
           <div className="picker-choices">
             {AVATARS.map((a) => (
-              <button
-                key={a.id}
+              <button key={a.id}
                 className={`choice ${selected === a.url ? "active" : ""}`}
-                onClick={() => setSelected(a.url)}
-              >
+                onClick={() => setSelected(a.url)}>
                 {a.name}
               </button>
             ))}
@@ -42,12 +42,23 @@ export function AvatarPicker({ onPicked, initialUrl, initialPersonality }) {
           <span className="picker-label">Personality</span>
           <div className="picker-choices">
             {Object.entries(PERSONALITIES).map(([key, p]) => (
-              <button
-                key={key}
+              <button key={key}
                 className={`choice ${personality === key ? "active" : ""}`}
-                onClick={() => setPersonality(key)}
-              >
+                onClick={() => setPersonality(key)}>
                 {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="picker-section">
+          <span className="picker-label">Language</span>
+          <div className="picker-choices">
+            {Object.entries(LANGUAGES).map(([key, l]) => (
+              <button key={key}
+                className={`choice ${language === key ? "active" : ""}`}
+                onClick={() => setLanguage(key)}>
+                {l.label}
               </button>
             ))}
           </div>
